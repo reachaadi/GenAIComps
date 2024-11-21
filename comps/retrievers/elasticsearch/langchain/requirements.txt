@@ -1,0 +1,13 @@
+docarray[full]
+easyocr
+fastapi
+langchain_community
+langchain-elasticsearch
+opentelemetry-api
+opentelemetry-exporter-otlp
+opentelemetry-sdk
+prometheus-fastapi-instrumentator==7.0.0
+pymupdf
+sentence_transformers
+shortuuid
+uvicorn
