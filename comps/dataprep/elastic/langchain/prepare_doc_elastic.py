@@ -67,10 +67,12 @@ def delete_embeddings(doc_name) -> bool:
             if LOG_FLAG:
                 logger.info(f"Deleting {doc_name} from vectorstore")
 
-            query = {"query": {"match": {"doc_name": doc_name}}}
+            query = {"query": {"match": {"metadata.doc_name": doc_name}}}
 
         es_store = get_elastic_store(get_embedder())
-        es_store._store.delete(query=query)
+        es_store._store.client.delete_by_query(index=INDEX_NAME, body=query)
+
+        return True
 
     except Exception as e:
         if LOG_FLAG:
@@ -79,8 +81,23 @@ def delete_embeddings(doc_name) -> bool:
         return False
 
 
+def search_by_filename(file_name) -> bool:
+    """Search Elasticsearch by file name."""
+
+    query = {"query": {"match": {"metadata.doc_name": file_name}}}
+    es_store = get_elastic_store(get_embedder())
+    results = es_store._store.client.search(index=INDEX_NAME, body=query)
+
+    if LOG_FLAG:
+        logger.info(f"[ search by file ] searched by {file_name}")
+        logger.info(f"[ search by file ] {len(results['hits'])} results: {results}")
+
+    return results["hits"]["total"]["value"] > 0
+
+
 def ingest_doc_to_elastic(doc_path: DocPath) -> None:
-    """Ingest document to elastic."""
+    """Ingest documents to Elasticsearch"""
+
     path = doc_path.path
     file_name = path.split("/")[-1]
     if LOG_FLAG:
@@ -116,7 +133,7 @@ def ingest_doc_to_elastic(doc_path: DocPath) -> None:
         chunks = chunks + table_chunks
 
     if LOG_FLAG:
-        logger.info("Done preprocessing. Created ", len(chunks), " chunks of the original file.")
+        logger.info(f"Done preprocessing. Created {len(chunks)} chunks of the original file.")
 
     batch_size = 32
     num_chunks = len(chunks)
@@ -134,9 +151,12 @@ def ingest_doc_to_elastic(doc_path: DocPath) -> None:
 
 
 async def ingest_link_to_elastic(link_list: List[str]) -> None:
+    """Ingest data scraped from website links into Elasticsearch"""
+
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP, add_start_index=True, separators=get_separators()
     )
+
     batch_size = 32
     es_store = get_elastic_store(get_embedder())
 
@@ -178,6 +198,8 @@ async def ingest_documents(
     process_table: bool = Form(False),
     table_strategy: str = Form("fast"),
 ):
+    """Ingest documents for RAG"""
+
     if LOG_FLAG:
         logger.info(f"files:{files}")
         logger.info(f"link_list:{link_list}")
@@ -195,6 +217,24 @@ async def ingest_documents(
         for file in files:
             encode_file = encode_filename(file.filename)
             save_path = UPLOADED_FILES_PATH + encode_file
+            filename = save_path.split("/")[-1]
+
+            try:
+                exists = search_by_filename(filename)
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500, detail=f"Failed when searching in Elasticsearch for file {file.filename}."
+                )
+
+            if exists:
+                if LOG_FLAG:
+                    logger.info(f"[ upload ] File {file.filename} already exists.")
+
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Uploaded file {file.filename} already exists. Please change file name.",
+                )
+
             await save_content_to_local_disk(save_path, file)
             ingest_doc_to_elastic(
                 DocPath(
@@ -234,6 +274,8 @@ async def ingest_documents(
 
 @register_microservice(name="opea_service@prepare_doc_elastic", endpoint="/v1/dataprep/get_file", host="localhost")
 async def rag_get_file_structure():
+    """Obtain uploaded file list"""
+
     if LOG_FLAG:
         logger.info("[ dataprep - get file ] start to get file structure")
 
@@ -272,11 +314,10 @@ async def delete_single_file(file_path: str = Body(..., embed=True)):
         return {"status": True}
 
     delete_path = Path(UPLOADED_FILES_PATH + "/" + encode_filename(file_path))
-    doc_path = UPLOADED_FILES_PATH + file_path
+
     if LOG_FLAG:
         logger.info(f"[dataprep - del] delete_path: {delete_path}")
 
-    # partially delete files/folders
     if delete_path.exists():
         # delete file
         if delete_path.is_file():

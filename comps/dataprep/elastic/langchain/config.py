@@ -17,4 +17,4 @@ CHUNK_SIZE = os.getenv("CHUNK_SIZE", 1500)
 CHUNK_OVERLAP = os.getenv("CHUNK_OVERLAP", 100)
 
 # Logging enabled
-LOG_FLAG = os.getenv("LOGFLAG", False)
+LOG_FLAG = os.getenv("LOGFLAG", True)
