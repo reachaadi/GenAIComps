@@ -1,10 +1,23 @@
+# Copyright (C) 2024 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import json
 import os
 from pathlib import Path
 from typing import List, Optional, Union
 
-from fastapi import File, Body, Form, HTTPException, UploadFile
-from langchain.text_splitter import RecursiveCharacterTextSplitter, HTMLHeaderTextSplitter
+from config import (
+    CHUNK_OVERLAP,
+    CHUNK_SIZE,
+    EMBED_MODEL,
+    ES_CONNECTION_STRING,
+    INDEX_NAME,
+    LOG_FLAG,
+    TEI_ENDPOINT,
+    UPLOADED_FILES_PATH,
+)
+from fastapi import Body, File, Form, HTTPException, UploadFile
+from langchain.text_splitter import HTMLHeaderTextSplitter, RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings, HuggingFaceHubEmbeddings
 from langchain_core.documents import Document
 from langchain_elasticsearch import ElasticsearchStore
@@ -14,22 +27,12 @@ from comps.dataprep.utils import (
     create_upload_folder,
     document_loader,
     encode_filename,
-    get_separators,
-    parse_html,
-    get_tables_result,
-    save_content_to_local_disk,
     get_file_structure,
+    get_separators,
+    get_tables_result,
+    parse_html,
     remove_folder_with_ignore,
-)
-from config import (
-    LOG_FLAG,
-    CHUNK_OVERLAP,
-    CHUNK_SIZE,
-    EMBED_MODEL,
-    INDEX_NAME,
-    ES_CONNECTION_STRING,
-    TEI_EMBEDDING_ENDPOINT,
-    UPLOADED_FILES_PATH,
+    save_content_to_local_disk,
 )
 
 logger = CustomLogger(__name__)
@@ -38,13 +41,15 @@ logger = CustomLogger(__name__)
 def get_embedder() -> Union[HuggingFaceHubEmbeddings, HuggingFaceBgeEmbeddings]:
     """Obtain required Embedder"""
 
-    if TEI_EMBEDDING_ENDPOINT:
-        return HuggingFaceHubEmbeddings(model=TEI_EMBEDDING_ENDPOINT)
+    if TEI_ENDPOINT:
+        return HuggingFaceHubEmbeddings(model=TEI_ENDPOINT)
     else:
         return HuggingFaceBgeEmbeddings(model_name=EMBED_MODEL)
 
 
-def get_elastic_store(embedder) -> ElasticsearchStore:
+def get_elastic_store(
+    embedder: Union[HuggingFaceHubEmbeddings, HuggingFaceBgeEmbeddings]
+) -> ElasticsearchStore:
     """Get Elasticsearch vector store"""
 
     return ElasticsearchStore(
@@ -54,7 +59,7 @@ def get_elastic_store(embedder) -> ElasticsearchStore:
     )
 
 
-def delete_embeddings(doc_name) -> bool:
+def delete_embeddings(doc_name: str) -> bool:
     """Delete documents from Elasticsearch."""
 
     try:
@@ -81,7 +86,7 @@ def delete_embeddings(doc_name) -> bool:
         return False
 
 
-def search_by_filename(file_name) -> bool:
+def search_by_filename(file_name: str) -> bool:
     """Search Elasticsearch by file name."""
 
     query = {"query": {"match": {"metadata.doc_name": file_name}}}
@@ -154,7 +159,10 @@ async def ingest_link_to_elastic(link_list: List[str]) -> None:
     """Ingest data scraped from website links into Elasticsearch"""
 
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP, add_start_index=True, separators=get_separators()
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
+        add_start_index=True,
+        separators=get_separators(),
     )
 
     batch_size = 32
@@ -186,10 +194,14 @@ async def ingest_link_to_elastic(link_list: List[str]) -> None:
             _ = es_store.add_documents(documents=documents)
 
             if LOG_FLAG:
-                logger.info(f"Processed batch {i // batch_size + 1}/{(num_chunks - 1) // batch_size + 1}")
+                logger.info(
+                    f"Processed batch {i // batch_size + 1}/{(num_chunks - 1) // batch_size + 1}"
+                )
 
 
-@register_microservice(name="opea_service@prepare_doc_elastic", endpoint="/v1/dataprep", host="localhost")
+@register_microservice(
+    name="opea_service@prepare_doc_elastic", endpoint="/v1/dataprep", host="0.0.0.0", port=6011
+)
 async def ingest_documents(
     files: Optional[Union[UploadFile, List[UploadFile]]] = File(None),
     link_list: Optional[str] = Form(None),
@@ -205,7 +217,9 @@ async def ingest_documents(
         logger.info(f"link_list:{link_list}")
 
     if files and link_list:
-        raise HTTPException(status_code=400, detail="Provide either a file or a string list, not both.")
+        raise HTTPException(
+            status_code=400, detail="Provide either a file or a string list, not both."
+        )
 
     if files:
         if not isinstance(files, list):
@@ -223,7 +237,8 @@ async def ingest_documents(
                 exists = search_by_filename(filename)
             except Exception as e:
                 raise HTTPException(
-                    status_code=500, detail=f"Failed when searching in Elasticsearch for file {file.filename}."
+                    status_code=500,
+                    detail=f"Failed when searching in Elasticsearch for file {file.filename}.",
                 )
 
             if exists:
@@ -272,7 +287,12 @@ async def ingest_documents(
     raise HTTPException(status_code=400, detail="Must provide either a file or a string list.")
 
 
-@register_microservice(name="opea_service@prepare_doc_elastic", endpoint="/v1/dataprep/get_file", host="localhost")
+@register_microservice(
+    name="opea_service@prepare_doc_elastic",
+    endpoint="/v1/dataprep/get_file",
+    host="0.0.0.0",
+    port=6011,
+)
 async def rag_get_file_structure():
     """Obtain uploaded file list"""
 
@@ -292,7 +312,12 @@ async def rag_get_file_structure():
     return file_content
 
 
-@register_microservice(name="opea_service@prepare_doc_elastic", endpoint="/v1/dataprep/delete_file", host="localhost")
+@register_microservice(
+    name="opea_service@prepare_doc_elastic",
+    endpoint="/v1/dataprep/delete_file",
+    host="0.0.0.0",
+    port=6011,
+)
 async def delete_single_file(file_path: str = Body(..., embed=True)):
     """Delete file according to `file_path`.
 
