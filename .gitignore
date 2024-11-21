@@ -1,4 +1,6 @@
 __pycache__
 *.egg-info/
 .DS_Store
-.idea
+.idea/
+.venv/
+build/
