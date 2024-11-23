@@ -6,21 +6,13 @@ import os
 from pathlib import Path
 from typing import List, Optional, Union
 
-from config import (
-    CHUNK_OVERLAP,
-    CHUNK_SIZE,
-    EMBED_MODEL,
-    ES_CONNECTION_STRING,
-    INDEX_NAME,
-    LOG_FLAG,
-    TEI_ENDPOINT,
-    UPLOADED_FILES_PATH,
-)
+from elasticsearch import Elasticsearch
 from fastapi import Body, File, Form, HTTPException, UploadFile
 from langchain.text_splitter import HTMLHeaderTextSplitter, RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings, HuggingFaceHubEmbeddings
+from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain_core.documents import Document
 from langchain_elasticsearch import ElasticsearchStore
+from langchain_huggingface.embeddings import HuggingFaceEndpointEmbeddings
 
 from comps import CustomLogger, DocPath, opea_microservices, register_microservice
 from comps.dataprep.utils import (
@@ -34,22 +26,35 @@ from comps.dataprep.utils import (
     remove_folder_with_ignore,
     save_content_to_local_disk,
 )
+from config import (
+    CHUNK_OVERLAP,
+    CHUNK_SIZE,
+    EMBED_MODEL,
+    ES_CONNECTION_STRING,
+    INDEX_NAME,
+    LOG_FLAG,
+    TEI_ENDPOINT,
+    UPLOADED_FILES_PATH,
+)
 
 logger = CustomLogger(__name__)
 
 
-def get_embedder() -> Union[HuggingFaceHubEmbeddings, HuggingFaceBgeEmbeddings]:
+def create_index(client: Elasticsearch):
+    if not client.indices.exists(index=INDEX_NAME):
+        client.indices.create(index=INDEX_NAME)
+
+
+def get_embedder() -> Union[HuggingFaceEndpointEmbeddings, HuggingFaceBgeEmbeddings]:
     """Obtain required Embedder"""
 
     if TEI_ENDPOINT:
-        return HuggingFaceHubEmbeddings(model=TEI_ENDPOINT)
+        return HuggingFaceEndpointEmbeddings(model=TEI_ENDPOINT)
     else:
         return HuggingFaceBgeEmbeddings(model_name=EMBED_MODEL)
 
 
-def get_elastic_store(
-    embedder: Union[HuggingFaceHubEmbeddings, HuggingFaceBgeEmbeddings]
-) -> ElasticsearchStore:
+def get_elastic_store(embedder: Union[HuggingFaceEndpointEmbeddings, HuggingFaceBgeEmbeddings]) -> ElasticsearchStore:
     """Get Elasticsearch vector store"""
 
     return ElasticsearchStore(
@@ -74,7 +79,6 @@ def delete_embeddings(doc_name: str) -> bool:
 
             query = {"query": {"match": {"metadata.doc_name": doc_name}}}
 
-        es_store = get_elastic_store(get_embedder())
         es_store._store.client.delete_by_query(index=INDEX_NAME, body=query)
 
         return True
@@ -90,7 +94,6 @@ def search_by_filename(file_name: str) -> bool:
     """Search Elasticsearch by file name."""
 
     query = {"query": {"match": {"metadata.doc_name": file_name}}}
-    es_store = get_elastic_store(get_embedder())
     results = es_store._store.client.search(index=INDEX_NAME, body=query)
 
     if LOG_FLAG:
@@ -142,7 +145,7 @@ def ingest_doc_to_elastic(doc_path: DocPath) -> None:
 
     batch_size = 32
     num_chunks = len(chunks)
-    es_store = get_elastic_store(get_embedder())
+
     metadata = dict({"doc_name": str(file_name)})
 
     for i in range(0, num_chunks, batch_size):
@@ -166,7 +169,6 @@ async def ingest_link_to_elastic(link_list: List[str]) -> None:
     )
 
     batch_size = 32
-    es_store = get_elastic_store(get_embedder())
 
     for link in link_list:
         content = parse_html([link])[0][0]
@@ -194,14 +196,10 @@ async def ingest_link_to_elastic(link_list: List[str]) -> None:
             _ = es_store.add_documents(documents=documents)
 
             if LOG_FLAG:
-                logger.info(
-                    f"Processed batch {i // batch_size + 1}/{(num_chunks - 1) // batch_size + 1}"
-                )
+                logger.info(f"Processed batch {i // batch_size + 1}/{(num_chunks - 1) // batch_size + 1}")
 
 
-@register_microservice(
-    name="opea_service@prepare_doc_elastic", endpoint="/v1/dataprep", host="0.0.0.0", port=6011
-)
+@register_microservice(name="opea_service@prepare_doc_elastic", endpoint="/v1/dataprep", host="0.0.0.0", port=6011)
 async def ingest_documents(
     files: Optional[Union[UploadFile, List[UploadFile]]] = File(None),
     link_list: Optional[str] = Form(None),
@@ -217,9 +215,7 @@ async def ingest_documents(
         logger.info(f"link_list:{link_list}")
 
     if files and link_list:
-        raise HTTPException(
-            status_code=400, detail="Provide either a file or a string list, not both."
-        )
+        raise HTTPException(status_code=400, detail="Provide either a file or a string list, not both.")
 
     if files:
         if not isinstance(files, list):
@@ -369,4 +365,6 @@ async def delete_single_file(file_path: str = Body(..., embed=True)):
 
 if __name__ == "__main__":
     create_upload_folder(UPLOADED_FILES_PATH)
+    create_index(Elasticsearch(hosts=ES_CONNECTION_STRING))
+    es_store = get_elastic_store(get_embedder())
     opea_microservices["opea_service@prepare_doc_elastic"].start()
