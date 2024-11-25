@@ -19,7 +19,7 @@ from comps import (
     register_statistics,
     statistics_dict,
 )
-from config import EMBED_MODEL, TEI_ENDPOINT, PORT, INDEX_NAME, ES_CONNECTION_STRING, LOG_FLAG
+from config import EMBED_MODEL, TEI_ENDPOINT, INDEX_NAME, ES_CONNECTION_STRING, LOG_FLAG
 
 logger = CustomLogger(__name__)
 
@@ -48,7 +48,7 @@ def get_elastic_store(embedder: Union[HuggingFaceEndpointEmbeddings, HuggingFace
     service_type=ServiceType.RETRIEVER,
     endpoint="/v1/retrieval",
     host="0.0.0.0",
-    port=PORT,
+    port=7000,
 )
 @register_statistics(names=["opea_service@retriever_elasticsearch"])
 async def retrieve(input: EmbedDoc) -> list:

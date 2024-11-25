@@ -14,7 +14,5 @@ TEI_ENDPOINT = os.getenv("TEI_ENDPOINT", "")
 # Vector Index Configuration
 INDEX_NAME = os.getenv("INDEX_NAME", "rag-elastic")
 
-PORT = os.getenv("RETRIEVER_PORT", 7000)
-
 # Logging enabled
 LOG_FLAG = os.getenv("LOGFLAG", False)
