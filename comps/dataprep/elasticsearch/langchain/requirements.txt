@@ -9,7 +9,7 @@ langchain
 langchain-community
 langchain-elasticsearch
 langchain-text-splitters
-langchain_huggingface
+langchain-huggingface
 markdown
 numpy
 opentelemetry-api

@@ -4,8 +4,9 @@
 import time
 from typing import Union
 
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings, HuggingFaceHubEmbeddings
+from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain_elasticsearch import ElasticsearchStore
+from langchain_huggingface.embeddings import HuggingFaceEndpointEmbeddings
 
 from comps import (
     CustomLogger,
@@ -23,16 +24,16 @@ from config import EMBED_MODEL, TEI_ENDPOINT, PORT, INDEX_NAME, ES_CONNECTION_ST
 logger = CustomLogger(__name__)
 
 
-def get_embedder() -> Union[HuggingFaceHubEmbeddings, HuggingFaceBgeEmbeddings]:
+def get_embedder() -> Union[HuggingFaceEndpointEmbeddings, HuggingFaceBgeEmbeddings]:
     """Obtain required Embedder"""
 
     if TEI_ENDPOINT:
-        return HuggingFaceHubEmbeddings(model=TEI_ENDPOINT)
+        return HuggingFaceEndpointEmbeddings(model=TEI_ENDPOINT)
     else:
         return HuggingFaceBgeEmbeddings(model_name=EMBED_MODEL)
 
 
-def get_elastic_store(embedder: Union[HuggingFaceHubEmbeddings, HuggingFaceBgeEmbeddings]) -> ElasticsearchStore:
+def get_elastic_store(embedder: Union[HuggingFaceEndpointEmbeddings, HuggingFaceBgeEmbeddings]) -> ElasticsearchStore:
     """Get Elasticsearch vector store"""
 
     return ElasticsearchStore(
@@ -50,7 +51,7 @@ def get_elastic_store(embedder: Union[HuggingFaceHubEmbeddings, HuggingFaceBgeEm
     port=PORT,
 )
 @register_statistics(names=["opea_service@retriever_elasticsearch"])
-async def retrieve(input: EmbedDoc) -> SearchedDoc:
+async def retrieve(input: EmbedDoc) -> list:
     """Retrieve documents based on similarity search type"""
     if LOG_FLAG:
         logger.info(input)
