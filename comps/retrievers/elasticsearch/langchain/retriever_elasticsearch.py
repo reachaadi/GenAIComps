@@ -4,6 +4,7 @@
 import time
 from typing import Union
 
+from elasticsearch import Elasticsearch
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain_elasticsearch import ElasticsearchStore
 from langchain_huggingface.embeddings import HuggingFaceEndpointEmbeddings
@@ -24,6 +25,11 @@ from config import EMBED_MODEL, TEI_ENDPOINT, INDEX_NAME, ES_CONNECTION_STRING, 
 logger = CustomLogger(__name__)
 
 
+def create_index() -> None:
+    if not es_client.indices.exists(index=INDEX_NAME):
+        es_client.indices.create(index=INDEX_NAME)
+
+
 def get_embedder() -> Union[HuggingFaceEndpointEmbeddings, HuggingFaceBgeEmbeddings]:
     """Obtain required Embedder"""
 
@@ -36,11 +42,7 @@ def get_embedder() -> Union[HuggingFaceEndpointEmbeddings, HuggingFaceBgeEmbeddi
 def get_elastic_store(embedder: Union[HuggingFaceEndpointEmbeddings, HuggingFaceBgeEmbeddings]) -> ElasticsearchStore:
     """Get Elasticsearch vector store"""
 
-    return ElasticsearchStore(
-        index_name=INDEX_NAME,
-        embedding=embedder,
-        es_url=ES_CONNECTION_STRING,
-    )
+    return ElasticsearchStore(index_name=INDEX_NAME, embedding=embedder, es_connection=es_client)
 
 
 @register_microservice(
@@ -97,5 +99,8 @@ async def retrieve(input: EmbedDoc) -> list:
 
 
 if __name__ == "__main__":
+    es_client = Elasticsearch(hosts=ES_CONNECTION_STRING)
+    es_store = get_elastic_store(get_embedder())
     vector_db = get_elastic_store(get_embedder())
+    create_index()
     opea_microservices["opea_service@retriever_elasticsearch"].start()

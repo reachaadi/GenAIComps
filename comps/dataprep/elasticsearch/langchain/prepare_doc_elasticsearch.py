@@ -40,9 +40,9 @@ from config import (
 logger = CustomLogger(__name__)
 
 
-def create_index(client: Elasticsearch):
-    if not client.indices.exists(index=INDEX_NAME):
-        client.indices.create(index=INDEX_NAME)
+def create_index() -> None:
+    if not es_client.indices.exists(index=INDEX_NAME):
+        es_client.indices.create(index=INDEX_NAME)
 
 
 def get_embedder() -> Union[HuggingFaceEndpointEmbeddings, HuggingFaceBgeEmbeddings]:
@@ -57,11 +57,7 @@ def get_embedder() -> Union[HuggingFaceEndpointEmbeddings, HuggingFaceBgeEmbeddi
 def get_elastic_store(embedder: Union[HuggingFaceEndpointEmbeddings, HuggingFaceBgeEmbeddings]) -> ElasticsearchStore:
     """Get Elasticsearch vector store"""
 
-    return ElasticsearchStore(
-        index_name=INDEX_NAME,
-        embedding=embedder,
-        es_url=ES_CONNECTION_STRING,
-    )
+    return ElasticsearchStore(index_name=INDEX_NAME, embedding=embedder, es_connection=es_client)
 
 
 def delete_embeddings(doc_name: str) -> bool:
@@ -77,9 +73,9 @@ def delete_embeddings(doc_name: str) -> bool:
             if LOG_FLAG:
                 logger.info(f"Deleting {doc_name} from vectorstore")
 
-            query = {"query": {"match": {"metadata.doc_name": doc_name}}}
+            query = {"query": {"match": {"metadata.doc_name": {"query": doc_name, "operator": "AND"}}}}
 
-        es_store._store.client.delete_by_query(index=INDEX_NAME, body=query)
+        es_client.delete_by_query(index=INDEX_NAME, body=query)
 
         return True
 
@@ -93,8 +89,8 @@ def delete_embeddings(doc_name: str) -> bool:
 def search_by_filename(file_name: str) -> bool:
     """Search Elasticsearch by file name."""
 
-    query = {"query": {"match": {"metadata.doc_name": file_name}}}
-    results = es_store._store.client.search(index=INDEX_NAME, body=query)
+    query = {"query": {"match": {"metadata.doc_name": {"query": file_name, "operator": "AND"}}}}
+    results = es_client.search(index=INDEX_NAME, body=query)
 
     if LOG_FLAG:
         logger.info(f"[ search by file ] searched by {file_name}")
@@ -247,6 +243,7 @@ async def ingest_documents(
                 )
 
             await save_content_to_local_disk(save_path, file)
+
             ingest_doc_to_elastic(
                 DocPath(
                     path=save_path,
@@ -260,6 +257,7 @@ async def ingest_documents(
                 logger.info(f"Successfully saved file {save_path}")
 
         result = {"status": 200, "message": "Data preparation succeeded"}
+
         if LOG_FLAG:
             logger.info(result)
         return result
@@ -269,14 +267,18 @@ async def ingest_documents(
             link_list = json.loads(link_list)  # Parse JSON string to list
             if not isinstance(link_list, list):
                 raise HTTPException(status_code=400, detail="link_list should be a list.")
+
             await ingest_link_to_elastic(link_list)
+
             if LOG_FLAG:
                 logger.info(f"Successfully saved link list {link_list}")
 
             result = {"status": 200, "message": "Data preparation succeeded"}
+
             if LOG_FLAG:
                 logger.info(result)
             return result
+
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Invalid JSON format for link_list.")
 
@@ -364,7 +366,8 @@ async def delete_single_file(file_path: str = Body(..., embed=True)):
 
 
 if __name__ == "__main__":
-    create_upload_folder(UPLOADED_FILES_PATH)
-    create_index(Elasticsearch(hosts=ES_CONNECTION_STRING))
+    es_client = Elasticsearch(hosts=ES_CONNECTION_STRING)
     es_store = get_elastic_store(get_embedder())
+    create_upload_folder(UPLOADED_FILES_PATH)
+    create_index()
     opea_microservices["opea_service@prepare_doc_elastic"].start()

@@ -50,7 +50,7 @@ docker build -t opea/dataprep-elasticsearch:latest --build-arg https_proxy=$http
 ### 2.4 Run Docker with CLI (Option A)
 
 ```bash
-docker run  --name="dataprep-elasticsearch" -p 6011:6011 --ipc=host -e http_proxy=$http_proxy -e https_proxy=$https_proxy -e PG_CONNECTION_STRING=$PG_CONNECTION_STRING  -e INDEX_NAME=$INDEX_NAME -e TEI_ENDPOINT=$TEI_ENDPOINT opea/dataprep-elastic:latest
+docker run  --name="dataprep-elasticsearch" -p 6011:6011 --ipc=host -e http_proxy=$http_proxy -e https_proxy=$https_proxy -e ES_CONNECTION_STRING=$ES_CONNECTION_STRING  -e INDEX_NAME=$INDEX_NAME -e TEI_ENDPOINT=$TEI_ENDPOINT opea/dataprep-elastic:latest
 ```
 
 ### 2.5 Run with Docker Compose (Option B)

@@ -1,7 +1,7 @@
 docarray[full]
 easyocr
 fastapi
-langchain_community
+langchain-community
 langchain-elasticsearch
 langchain-huggingface
 opentelemetry-api

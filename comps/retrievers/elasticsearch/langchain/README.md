@@ -51,14 +51,14 @@ As for Elasticsearch, you could start a docker container using the following com
 Remember to ingest data into it manually.
 
 ```bash
-docker run --name vectorstore-elasticsearch -e POSTGRES_USER=${POSTGRES_USER} -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=${POSTGRES_DB} -e POSTGRES_PASSWORD=${POSTGRES_PASSWORD} -d -v ./init.sql:/docker-entrypoint-initdb.d/init.sql -p 5432:5432 Elasticsearch/Elasticsearch:0.7.0-pg16
+docker run -d --name vectorstore-elasticsearch -e ES_JAVA_OPTS="-Xms1g -Xmx1g" -e "discovery.type=single-node" -e "xpack.security.enabled=false"  -p 9200:9200 -p 9300:9300 docker.elastic.co/elasticsearch/elasticsearch:8.16.0
 ```
 
 ### 1.5 Start Retriever Service
 
 ```bash
 export TEI_EMBEDDING_ENDPOINT="http://${your_ip}:6060"
-python retriever_Elasticsearch.py
+python retriever_elasticsearch.py
 ```
 
 ## 🚀2. Start Microservice with Docker (Option 2)
@@ -66,7 +66,7 @@ python retriever_Elasticsearch.py
 ### 2.1 Setup Environment Variables
 
 ```bash
-export RETRIEVE_MODEL_ID="BAAI/bge-base-en-v1.5"
+export EMBED_MODEL="BAAI/bge-base-en-v1.5"
 export ES_CONNECTION_STRING="http://localhost:9200"
 export INDEX_NAME=${your_index_name}
 export TEI_EMBEDDING_ENDPOINT="http://${your_ip}:6060"
@@ -75,8 +75,8 @@ export TEI_EMBEDDING_ENDPOINT="http://${your_ip}:6060"
 ### 2.2 Build Docker Image
 
 ```bash
-cd comps/retrievers/Elasticsearch/langchain
-docker build -t opea/retriever-Elasticsearch:latest --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy -f comps/retrievers/Elasticsearch/langchain/Dockerfile .
+cd comps/retrievers/elasticsearch/langchain
+docker build -t opea/retriever-elasticsearch:latest --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy -f comps/retrievers/elasticsearch/langchain/Dockerfile .
 ```
 
 To start a docker container, you have two options:
@@ -89,13 +89,13 @@ You can choose one as needed.
 ### 2.3 Run Docker with CLI (Option A)
 
 ```bash
-docker run -d --name="retriever-Elasticsearch" -p 7000:7000 --ipc=host -e http_proxy=$http_proxy -e https_proxy=$https_proxy -e ES_CONNECTION_STRING=$ES_CONNECTION_STRING  -e INDEX_NAME=$INDEX_NAME -e TEI_ENDPOINT=$TEI_ENDPOINT opea/retriever-Elasticsearch:latest
+docker run -d --name="retriever-elasticsearch" -p 7000:7000 --ipc=host -e http_proxy=$http_proxy -e https_proxy=$https_proxy -e ES_CONNECTION_STRING=$ES_CONNECTION_STRING  -e INDEX_NAME=$INDEX_NAME -e TEI_ENDPOINT=$TEI_ENDPOINT opea/retriever-elasticsearch:latest
 ```
 
 ### 2.4 Run Docker with Docker Compose (Option B)
 
 ```bash
-cd comps/retrievers/Elasticsearch/langchain
+cd comps/retrievers/elasticsearch/langchain
 docker compose -f docker_compose_retriever.yaml up -d
 ```
 
