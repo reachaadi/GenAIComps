@@ -5,7 +5,7 @@ version: "3"
 services:
   elasticsearch-vector-db:
     hostname: db
-    container_name: pgvector-vector-db
+    container_name: elasticsearch-vector-db
     image: docker.elastic.co/elasticsearch/elasticsearch:8.16.0
     ports:
       - "9200:9200"
