@@ -1,18 +1,7 @@
-# Copyright (C) 2024 Intel Corporation
-# SPDX-License-Identifier: Apache-2.0
-
 import json
 import os
 from pathlib import Path
 from typing import List, Optional, Union
-
-from elasticsearch import Elasticsearch
-from fastapi import Body, File, Form, HTTPException, UploadFile
-from langchain.text_splitter import HTMLHeaderTextSplitter, RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings
-from langchain_core.documents import Document
-from langchain_elasticsearch import ElasticsearchStore
-from langchain_huggingface.embeddings import HuggingFaceEndpointEmbeddings
 
 from comps import CustomLogger, DocPath, opea_microservices, register_microservice
 from comps.dataprep.utils import (
@@ -26,6 +15,14 @@ from comps.dataprep.utils import (
     remove_folder_with_ignore,
     save_content_to_local_disk,
 )
+from elasticsearch import Elasticsearch
+from fastapi import Body, File, Form, HTTPException, UploadFile
+from langchain.text_splitter import HTMLHeaderTextSplitter, RecursiveCharacterTextSplitter
+from langchain_community.embeddings import HuggingFaceBgeEmbeddings
+from langchain_core.documents import Document
+from langchain_elasticsearch import ElasticsearchStore
+from langchain_huggingface.embeddings import HuggingFaceEndpointEmbeddings
+
 from config import (
     CHUNK_OVERLAP,
     CHUNK_SIZE,
