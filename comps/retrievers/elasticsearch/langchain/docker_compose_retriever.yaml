@@ -19,8 +19,10 @@ services:
     environment:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
+      INDEX_NAME: ${INDEX_NAME}
+      TEI_ENDPOINT: ${TEI_ENDPOINT}
       ES_CONNECTION_STRING: ${ES_CONNECTION_STRING}
-      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
+      HUGGINGFACEHUB_API_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
     restart: unless-stopped
 
 networks:

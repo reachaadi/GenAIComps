@@ -30,6 +30,7 @@ services:
       ES_CONNECTION_STRING: ${ES_CONNECTION_STRING}
       INDEX_NAME: ${INDEX_NAME}
       TEI_ENDPOINT: ${TEI_ENDPOINT}
+      HUGGINGFACEHUB_API_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
     restart: unless-stopped
 
 networks:
