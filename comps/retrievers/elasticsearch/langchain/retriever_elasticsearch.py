@@ -97,7 +97,6 @@ async def retrieve(input: EmbedDoc) -> list:
 
 if __name__ == "__main__":
     es_client = Elasticsearch(hosts=ES_CONNECTION_STRING)
-    es_store = get_elastic_store(get_embedder())
     vector_db = get_elastic_store(get_embedder())
     create_index()
     opea_microservices["opea_service@retriever_elasticsearch"].start()
