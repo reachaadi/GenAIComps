@@ -4,12 +4,10 @@
 import time
 from typing import Union
 
-from config import EMBED_MODEL, ES_CONNECTION_STRING, INDEX_NAME, LOG_FLAG, TEI_ENDPOINT
 from elasticsearch import Elasticsearch
-from elasticsearch.helpers.vectorstore import DenseVectorStrategy, DistanceMetric
+from elasticsearch.helpers.vectorstore import DenseVectorStrategy
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
-from langchain_elasticsearch import ElasticsearchStore, ElasticsearchRetriever
-from langchain_elasticsearch.vectorstores import ApproxRetrievalStrategy
+from langchain_elasticsearch import ElasticsearchStore
 from langchain_huggingface.embeddings import HuggingFaceEndpointEmbeddings
 
 from comps import (
@@ -23,6 +21,7 @@ from comps import (
     register_statistics,
     statistics_dict,
 )
+from config import EMBED_MODEL, ES_CONNECTION_STRING, INDEX_NAME, LOG_FLAG, TEI_ENDPOINT
 
 logger = CustomLogger(__name__)
 
@@ -50,7 +49,7 @@ def get_elastic_store(
             index_name=INDEX_NAME,
             embedding=embedder,
             es_connection=es_client,
-            strategy=DenseVectorStrategy(hybrid=True),
+            strategy=DenseVectorStrategy(hybrid=True, rrf=False),
         )
     return ElasticsearchStore(index_name=INDEX_NAME, embedding=embedder, es_connection=es_client)
 
@@ -70,7 +69,7 @@ async def retrieve(input: EmbedDoc) -> SearchedDoc:
     start = time.time()
 
     if input.search_type == "similarity":
-        docs_and_similarities = vector_db.similarity_search_with_score(query=input.txt, k=input.k)
+        docs_and_similarities = vector_db.similarity_search_with_score(query=input.text, k=input.k)
         search_res = [doc for doc, _ in docs_and_similarities]
 
     elif input.search_type == "similarity_distance_threshold":
@@ -91,8 +90,8 @@ async def retrieve(input: EmbedDoc) -> SearchedDoc:
         )
 
     elif input.search_type == "hybrid":
-        vector_db = get_elastic_store(embeddings, hybrid=True)
-        search_res = vector_db.similarity_search(query=input.text, k=input.k)
+        hybrid_vector_store = get_elastic_store(embeddings, hybrid=True)
+        search_res = hybrid_vector_store.similarity_search(query=input.text, k=input.k)
 
     else:
         raise ValueError(f"{input.search_type} not valid")
